@@ -1,0 +1,187 @@
+module fregelet.FregeletServlet where
+
+import frege.Prelude hiding (Reader)
+import Data.JSON (Value JSONValue)
+import Data.JSON
+import Data.List
+
+import Control.monad.Reader
+import Control.monad.trans.MonadIO
+import Control.arrow.Kleisli
+
+native module type HttpServlet where {
+
+    private final frege.prelude.PreludeBase.TList routes;
+
+    public FregeletServlet(frege.prelude.PreludeBase.TList routes) {
+        this.routes = routes;
+    }
+
+    private static <R> R performUnsafe(java.util.function.Supplier<frege.runtime.Lambda> f) {
+      return frege.runtime.Delayed.forced(
+        frege.prelude.PreludeBase.TST.performUnsafe(f.get())
+      );
+    }
+
+    private void handle(javax.servlet.http.HttpServletRequest request,
+                         javax.servlet.http.HttpServletResponse response) throws javax.servlet.ServletException,
+        java.io.IOException {
+        performUnsafe(() -> FregeletServlet.handle(routes, request, response));
+    }
+
+    @Override
+    protected void doGet(javax.servlet.http.HttpServletRequest request,
+                         javax.servlet.http.HttpServletResponse response) throws javax.servlet.ServletException,
+        java.io.IOException {
+        handle(request, response);
+
+    }
+
+    @Override
+    protected void doHead(final javax.servlet.http.HttpServletRequest request,
+                          final javax.servlet.http.HttpServletResponse response)
+          throws javax.servlet.ServletException, java.io.IOException {
+        handle(request, response);
+    }
+
+    @Override
+    protected void doPost(final javax.servlet.http.HttpServletRequest request,
+                          final javax.servlet.http.HttpServletResponse response)
+          throws javax.servlet.ServletException, java.io.IOException {
+        handle(request, response);
+    }
+
+    @Override
+    protected void doPut(final javax.servlet.http.HttpServletRequest request,
+                         final javax.servlet.http.HttpServletResponse response)
+          throws javax.servlet.ServletException, java.io.IOException {
+        handle(request, response);
+    }
+
+    @Override
+    protected void doDelete(final javax.servlet.http.HttpServletRequest request,
+                            final javax.servlet.http.HttpServletResponse response)
+          throws javax.servlet.ServletException, java.io.IOException {
+        handle(request, response);
+    }
+
+    @Override
+    protected void doOptions(final javax.servlet.http.HttpServletRequest request,
+                             final javax.servlet.http.HttpServletResponse response)
+          throws javax.servlet.ServletException, java.io.IOException {
+        handle(request, response);
+    }
+
+    @Override
+    protected void doTrace(final javax.servlet.http.HttpServletRequest request,
+                           final javax.servlet.http.HttpServletResponse response)
+          throws javax.servlet.ServletException, java.io.IOException {
+        handle(request, response);
+    }
+
+}
+
+handle :: [(RoutePath, [HttpMethod], Handler ())] → MutableIO HttpServletRequest → MutableIO HttpServletResponse → IO ()
+handle routes request response = do
+  pathInfo ← request.getPathInfo
+  methodStr ← request.getMethod
+  let f requestPath = maybe notFound (runHandler requestPath) (findHandler requestPath routes)
+      method = fromMaybe Get $ HttpMethod.parse methodStr
+      runHandler requestPath (route@(routePath, methods, handler))
+        | not $ any ((==) method) methods = notAllowed
+        | otherwise = invokeHandler route requestPath request response
+      notFound = response.sendError HttpServletResponse.notFound
+      notAllowed = response.sendError HttpServletResponse.methodNotAllowed
+  maybe notFound f pathInfo
+
+invokeHandler (expectedRoute, _, handler) actualRoute request response = do
+  let params = parseParams actualRoute expectedRoute
+  Handler.run handler (Web params request response)
+
+parseParams actualRoute expectedRoute = zip paramNames paramValues where
+  paramValues = captureGroups $ (actualRoute ~~~ (toRouteRegex expectedRoute))
+  paramNames = map (drop 1) . captureGroups $ (expectedRoute ~~~ (toRouteRegex expectedRoute))
+  captureGroups f = catMaybes $ takeWhile isJust [f i | i ← [1..]]
+
+findHandler :: String → [Route] → Maybe Route
+findHandler actualRoute [] = Nothing
+findHandler actualRoute ((r@(expectedRoute, _, _)): xs)
+  | routeMatches actualRoute expectedRoute = Just r
+  | otherwise = findHandler actualRoute xs
+
+routeMatches actual expected = actual ~ (toRouteRegex expected)
+
+toRouteRegex :: String → Regex
+toRouteRegex route =
+  let parts = Regex.splitted (regforce "/") route
+      paramWildcardParts = map (\p → if p ~ '\:.*' then "(.*)" else p) parts
+  in
+    regforce $ intercalate "/" paramWildcardParts
+
+type Request = MutableIO HttpServletRequest
+type Response = MutableIO HttpServletResponse
+
+data Web = Web
+  { pathParams :: [(String, String)]
+  , request :: Request
+  , response :: Response
+  }
+
+data Handler a = Handler {un :: ReaderT IO Web a } where
+  ask :: Handler Web
+  ask = Handler Reader.ask
+
+  run :: Handler a → Web → IO a
+  run handler web = Kleisli.run handler.un web
+
+instance Monad Handler where
+  return = Handler . return
+  (Handler r) >>= f = Handler $ r >>= g where
+     g = Handler.un . f
+
+instance MonadIO Handler where
+    liftIO io = Handler $ Kleisli (\_ → io)
+
+data ServerConfig = ServerConfig
+  { port :: Int
+  , routes :: [Route]
+  }
+
+type Route = (RoutePath, [HttpMethod], Handler ())
+
+type RoutePath = String
+
+data HttpMethod = Get | Post | Delete | Put | Head | Options | Trace where
+  parse :: String → Maybe HttpMethod
+  parse s = find ((==) s.toLowerCase . String.toLowerCase . show) [minBound ..]
+
+derive Show HttpMethod
+derive Enum HttpMethod
+derive Bounded HttpMethod
+
+data HttpServlet = native javax.servlet.http.HttpServlet
+
+data HttpServletRequest = native javax.servlet.http.HttpServletRequest where
+  native getParameter :: MutableIO HttpServletRequest → String → IO (Maybe String)
+  native setAttribute :: Mutable s HttpServletRequest → String → Object → ST s ()
+  native getContextPath :: Mutable s HttpServletRequest → ST s String
+  native getPathInfo :: Mutable s HttpServletRequest → ST s (Maybe String)
+  native getMethod :: Mutable s HttpServletRequest → ST s String
+
+data HttpServletResponse = native javax.servlet.http.HttpServletResponse where
+
+  native getWriter :: MutableIO HttpServletResponse → IO PrintWriter throws IOException
+
+  native setContentType :: MutableIO HttpServletResponse → String → IO ()
+  native setHeader :: MutableIO HttpServletResponse → String → String → IO ()
+
+  pure native notFound javax.servlet.http.HttpServletResponse.SC_NOT_FOUND :: Int
+  pure native methodNotAllowed javax.servlet.http.HttpServletResponse.SC_METHOD_NOT_ALLOWED :: Int
+
+  native sendError :: MutableIO HttpServletResponse → Int → IO () throws IOException
+
+  write :: MutableIO HttpServletResponse → String → IO ()
+  write response s = do
+    writer ← response.getWriter
+    writer.println s
+

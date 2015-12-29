@@ -1,0 +1,46 @@
+module fregelet.FregeletServer where
+
+import Control.monad.trans.MonadIO
+import Data.JSON (Value JSONValue)
+import Data.JSON
+import Data.List (find)
+import fregelet.Jetty hiding (HttpServlet, Handler)
+import fregelet.FregeletServlet
+
+startServer :: ServerConfig  → IO ()
+startServer config = do
+  server ← Server.new config.port
+  context ← ServletContextHandler.new ()
+  context.setResourceBase "webapp"
+  appServlet ← FregeletServlet.new config.routes >>= ServletHolder.new
+  context.addServlet appServlet "/api/*"
+  defaultServlet ← DefaultServlet.new () >>= ServletHolder.new
+  context.addServlet defaultServlet "/*"
+  server.setHandler context
+  server.start
+  server.threadJoin
+
+sendJSON :: ToJSON a ⇒ a → Handler ()
+sendJSON json = do
+  web ← Handler.ask
+  liftIO $ web.response.setContentType "application/json"
+  liftIO $ web.response.write . show $ toJSON json
+
+sendText :: Show a ⇒ a → Handler ()
+sendText text = do
+  web ← Handler.ask
+  liftIO $ web.response.setContentType "text/plain"
+  liftIO $ web.response.write . show $ text
+
+pathParam :: String → Handler (Maybe String)
+pathParam paramName = do
+  web ← Handler.ask
+  let kv = find ((== paramName) . fst) $ web.pathParams
+  return $ snd <$> kv
+
+requestParam :: String → Handler (Maybe String)
+requestParam paramName = Handler.ask >>= (\web → liftIO $ web.request.getParameter paramName)
+
+data FregeletServlet = native fregelet.FregeletServlet where
+  native new :: [Route] → STMutable s FregeletServlet
+

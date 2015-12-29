@@ -1,0 +1,29 @@
+module fregelet.Jetty where
+
+data Server = mutable native org.eclipse.jetty.server.Server where
+
+  native new :: Int -> IO Server
+  native setHandler :: Server -> MutableIO Handler -> IO ()
+  native start :: Server -> IO () throws Exception
+  native threadJoin join :: Server -> IO () throws InterruptedException
+
+data Handler = native org.eclipse.jetty.server.Handler
+
+data ServletContextHandler = native org.eclipse.jetty.servlet.ServletContextHandler where
+  native new :: () -> STMutable s ServletContextHandler
+  native setResourceBase :: Mutable s ServletContextHandler -> String -> ST s ()
+  native setWelcomeFiles :: Mutable s ServletContextHandler -> ArrayOf s String -> ST s ()
+  native addServlet :: Mutable s ServletContextHandler -> Mutable s ServletHolder -> String -> ST s ()
+
+
+data ServletHolder = native org.eclipse.jetty.servlet.ServletHolder where
+  native new :: Mutable s Servlet -> STMutable s ServletHolder
+
+data HttpServlet = native javax.servlet.http.HttpServlet
+
+data Servlet = native javax.servlet.Servlet
+
+data DefaultServlet = native org.eclipse.jetty.servlet.DefaultServlet where
+  native new :: () -> STMutable s DefaultServlet
+
+

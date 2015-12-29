@@ -1,0 +1,51 @@
+module fregelet.Main where
+
+import Control.monad.trans.MonadIO
+import Data.JSON (Value JSONValue)
+import Data.JSON
+import fregelet.FregeletServer
+import fregelet.FregeletServlet
+import Java.Util (Date)
+
+data Greeting = Greeting { message :: String }
+
+instance ToJSON Greeting where
+    toJSON Greeting { message } = Struct [ assoc "message" message ]
+
+greet :: Handler ()
+greet = do
+  name ← pathParam "name"
+  let greeting = Greeting $ "Hello, " ++ (fromMaybe "there" name)
+  sendJSON greeting
+
+date :: Handler ()
+date = liftIO (Date.new () >>= _.toString) >>= sendText
+
+downloadCsv :: Handler ()
+downloadCsv = do
+  web ← Handler.ask
+  let response = web.response
+      csvData = "foo,bar,baz"
+      sendCsv = do
+        response.setContentType "text/csv"
+        response.setHeader "Content-Disposition" "attachment; fileName=output.csv"
+        response.write csvData
+  liftIO sendCsv
+
+config = ServerConfig {
+    port = 8080,
+
+    routes = [
+      ("/greet/:name", [Get, Post], greet),
+      ("/date", [Get], date),
+      ("/download", [Get], downloadCsv)
+    ]
+  }
+
+main = startServer config
+
+
+
+
+
+
