@@ -26,7 +26,7 @@ main = startServer config
 
 To try it in your browser, go to: 
 
-http://localhost:8080/api/greet/John
+http://0.0.0.0:8080/api/greet/John
 
 ### Send JSON
 
