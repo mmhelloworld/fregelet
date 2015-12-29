@@ -42,6 +42,7 @@ greet = do
 
 ### Send simple text
 
+```
 date :: Handler ()
 date = liftIO (Date.new () >>= _.toString) >>= sendText```
 

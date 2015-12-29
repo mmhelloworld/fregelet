@@ -81,7 +81,7 @@ native module type HttpServlet where {
 
 }
 
-handle :: [(RoutePath, [HttpMethod], Handler ())] → MutableIO HttpServletRequest → MutableIO HttpServletResponse → IO ()
+handle :: [Route] → MutableIO HttpServletRequest → MutableIO HttpServletResponse → IO ()
 handle routes request response = do
   pathInfo ← request.getPathInfo
   methodStr ← request.getMethod
