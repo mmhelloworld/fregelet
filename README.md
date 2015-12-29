@@ -23,6 +23,11 @@ config = ServerConfig {
 
 main = startServer config
 ```
+
+To try it in your browser, go to: 
+
+http://0.0.0.0:8080/api/greet/John
+
 ### Send JSON
 
 ```frege
