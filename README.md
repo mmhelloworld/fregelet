@@ -42,7 +42,7 @@ greet = do
 
 ### Send simple text
 
-```
+```frege 
 date :: Handler ()
 date = liftIO (Date.new () >>= _.toString) >>= sendText
 
@@ -50,7 +50,7 @@ date = liftIO (Date.new () >>= _.toString) >>= sendText
 
 ### Write directly to response
 
-```
+```frege 
 downloadCsv :: Handler ()
 downloadCsv = do
   web ← Handler.ask
