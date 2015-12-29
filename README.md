@@ -44,7 +44,7 @@ greet = do
 
 ```
 date :: Handler ()
-date = liftIO (Date.new () >>= _.toString) >>= sendText```
+date = liftIO (Date.new () >>= _.toString) >>= sendText
 
 ```
 
