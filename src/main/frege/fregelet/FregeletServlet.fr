@@ -17,16 +17,10 @@ native module type HttpServlet where {
         this.routes = routes;
     }
 
-    private static <R> R performUnsafe(java.util.function.Supplier<frege.runtime.Lambda> f) {
-      return frege.runtime.Delayed.forced(
-        frege.prelude.PreludeBase.TST.performUnsafe(f.get())
-      );
-    }
-
     private void handle(javax.servlet.http.HttpServletRequest request,
                          javax.servlet.http.HttpServletResponse response) throws javax.servlet.ServletException,
         java.io.IOException {
-        performUnsafe(() -> FregeletServlet.handle(routes, request, response));
+        frege.prelude.PreludeBase.TST.performUnsafe(FregeletServlet.handle(routes, request, response)).call();
     }
 
     @Override
@@ -82,7 +76,7 @@ native module type HttpServlet where {
 }
 
 handle :: [Route] → MutableIO HttpServletRequest → MutableIO HttpServletResponse → IO ()
-handle routes request response = do
+handle routes !request !response = do
   pathInfo ← request.getPathInfo
   methodStr ← request.getMethod
   let f requestPath = maybe notFound (runHandler requestPath) (findHandler requestPath routes)
@@ -116,7 +110,7 @@ toRouteRegex route =
   let parts = Regex.splitted (regforce "/") route
       paramWildcardParts = map (\p → if p ~ '\:.*' then "(.*)" else p) parts
   in
-    regforce $ intercalate "/" paramWildcardParts
+    regforce . packed <$> intercalate ['/'] $ toList <$> paramWildcardParts
 
 type Request = MutableIO HttpServletRequest
 type Response = MutableIO HttpServletResponse
@@ -135,7 +129,7 @@ data Handler a = Handler {un :: ReaderT IO Web a } where
   run handler web = Kleisli.run handler.un web
 
 instance Monad Handler where
-  return = Handler . return
+  pure = Handler . pure
   (Handler r) >>= f = Handler $ r >>= g where
      g = Handler.un . f
 

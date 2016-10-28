@@ -13,9 +13,7 @@ startServer config = do
   context ← ServletContextHandler.new ()
   context.setResourceBase "webapp"
   appServlet ← FregeletServlet.new config.routes >>= ServletHolder.new
-  context.addServlet appServlet "/api/*"
-  defaultServlet ← DefaultServlet.new () >>= ServletHolder.new
-  context.addServlet defaultServlet "/*"
+  context.addServlet appServlet "/*"
   server.setHandler context
   server.start
   server.threadJoin
